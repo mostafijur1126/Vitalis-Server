@@ -178,6 +178,46 @@ app.post("/api/forum/comment", async (req, res) => {
   res.json({ success: true, comment });
 });
 
+//comment edit
+app.put("/api/forum/comment/:postId/:commentId", async (req, res) => {
+  const { postId, commentId } = req.params;
+  const { content, userId } = req.body;
+
+  const post = await forumPostCollection.findOne({ _id: new ObjectId(postId) });
+  const comment = post.comments.find((c) => c._id.toString() === commentId);
+
+  if (comment.userId !== userId) {
+    return res.status(403).json({ error: "Unauthorized" });
+  }
+
+  await forumPostCollection.updateOne(
+    { _id: new ObjectId(postId), "comments._id": new ObjectId(commentId) },
+    { $set: { "comments.$.content": content, "comments.$.edited": true } },
+  );
+
+  res.json({ success: true, content });
+});
+
+// Comment delete
+app.delete("/api/forum/comment/:postId/:commentId", async (req, res) => {
+  const { postId, commentId } = req.params;
+  const { userId } = req.body;
+
+  const post = await forumPostCollection.findOne({ _id: new ObjectId(postId) });
+  const comment = post.comments.find((c) => c._id.toString() === commentId);
+
+  if (comment.userId !== userId) {
+    return res.status(403).json({ error: "Unauthorized" });
+  }
+
+  await forumPostCollection.updateOne(
+    { _id: new ObjectId(postId) },
+    { $pull: { comments: { _id: new ObjectId(commentId) } } },
+  );
+
+  res.json({ success: true });
+});
+
 // Comment like toggle
 app.post("/api/forum/comment/like", async (req, res) => {
   const { postId, commentId, userId } = req.body;
