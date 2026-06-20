@@ -48,7 +48,8 @@ app.get("/api/all-class", async (req, res) => {
     const result = await classCollection.find(query).toArray();
     res.send(result);
   } catch (error) {
-    res.status(500).send({ message: "Server Error" });
+    console.error("Error:", error.message);
+    res.status(500).send({ message: error.message });
   }
 });
 
@@ -116,7 +117,11 @@ app.get("/api/favorites", async (req, res) => {
   res.status(200).json(favorites);
 });
 
-// Forum
+// Forum posts
+app.get("/api/forumPost", async (req, res) => {
+  const result = await forumPostCollection.find().toArray();
+  res.send(result);
+});
 app.post("/api/forumPost", async (req, res) => {
   const newPost = { ...req.body, createdAt: new Date(), status: "pending" };
   const result = await forumPostCollection.insertOne(newPost);
