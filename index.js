@@ -122,10 +122,108 @@ app.get("/api/forumPost", async (req, res) => {
   const result = await forumPostCollection.find().toArray();
   res.send(result);
 });
+app.get("/api/forumPost/:id", async (req, res) => {
+  const id = req.params.id;
+  const query = { _id: new ObjectId(id) };
+  const result = await forumPostCollection.findOne(query);
+  res.send(result);
+});
 app.post("/api/forumPost", async (req, res) => {
   const newPost = { ...req.body, createdAt: new Date(), status: "pending" };
   const result = await forumPostCollection.insertOne(newPost);
   res.status(200).json(result);
+});
+
+//Like toggle
+app.post("/api/forum/like", async (req, res) => {
+  const { postId, userId } = req.body;
+  const post = await forumPostCollection.findOne({ _id: new ObjectId(postId) });
+
+  const likes = post.likes || [];
+  const alreadyLiked = likes.includes(userId);
+
+  if (alreadyLiked) {
+    await forumPostCollection.updateOne(
+      { _id: new ObjectId(postId) },
+      { $pull: { likes: userId } },
+    );
+    res.json({ liked: false, likeCount: likes.length - 1 });
+  } else {
+    await forumPostCollection.updateOne(
+      { _id: new ObjectId(postId) },
+      { $push: { likes: userId } },
+    );
+    res.json({ liked: true, likeCount: likes.length + 1 });
+  }
+});
+
+//Comment add
+app.post("/api/forum/comment", async (req, res) => {
+  const { postId, userId, userName, userImage, userRole, content } = req.body;
+  const comment = {
+    _id: new ObjectId(),
+    userId,
+    userName,
+    userImage: userImage || null,
+    userRole,
+    content,
+    likes: [],
+    replies: [],
+    createdAt: new Date(),
+  };
+  await forumPostCollection.updateOne(
+    { _id: new ObjectId(postId) },
+    { $push: { comments: comment } },
+  );
+  res.json({ success: true, comment });
+});
+
+// Comment like toggle
+app.post("/api/forum/comment/like", async (req, res) => {
+  const { postId, commentId, userId } = req.body;
+
+  const post = await forumPostCollection.findOne({ _id: new ObjectId(postId) });
+  const comment = post.comments.find((c) => c._id.toString() === commentId);
+  const likes = comment.likes || [];
+  const alreadyLiked = likes.includes(userId);
+
+  if (alreadyLiked) {
+    await forumPostCollection.updateOne(
+      { _id: new ObjectId(postId), "comments._id": new ObjectId(commentId) },
+      { $pull: { "comments.$.likes": userId } },
+    );
+    res.json({ liked: false, likeCount: likes.length - 1 });
+  } else {
+    await forumPostCollection.updateOne(
+      { _id: new ObjectId(postId), "comments._id": new ObjectId(commentId) },
+      { $push: { "comments.$.likes": userId } },
+    );
+    res.json({ liked: true, likeCount: likes.length + 1 });
+  }
+});
+
+// Reply add
+app.post("/api/forum/reply", async (req, res) => {
+  const { postId, commentId, userId, userName, userImage, userRole, content } =
+    req.body;
+
+  const reply = {
+    _id: new ObjectId(),
+    userId,
+    userName,
+    userImage: userImage || null,
+    userRole,
+    content,
+    likes: [],
+    createdAt: new Date(),
+  };
+
+  await forumPostCollection.updateOne(
+    { _id: new ObjectId(postId), "comments._id": new ObjectId(commentId) },
+    { $push: { "comments.$.replies": reply } },
+  );
+
+  res.json({ success: true, reply });
 });
 
 app.get("/", (req, res) => res.send("Hello World!"));
