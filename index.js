@@ -294,9 +294,22 @@ app.get("/api/trainerApplication", async (req, res) => {
   res.send(result || {});
 });
 
-app.post("/api/trainerApplication", async (req, res) => {
+// Application check
+app.get("/api/trainer-application/check", async (req, res) => {
+  const { userId } = req.query;
+  const existing = await trainerApplicationCollection.findOne({ userId });
+  res.json({ hasApplied: !!existing, status: existing?.status || null });
+});
+
+// Application submit
+app.post("/api/trainer-application", async (req, res) => {
+  const { userId } = req.body;
+  const existing = await trainerApplicationCollection.findOne({ userId });
+  if (existing) {
+    return res.status(400).json({ error: "Already applied!" });
+  }
   const result = await trainerApplicationCollection.insertOne(req.body);
-  res.send(result);
+  res.json(result);
 });
 
 app.get("/", (req, res) => res.send("Hello World!"));
