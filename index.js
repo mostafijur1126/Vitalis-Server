@@ -60,8 +60,20 @@ app.get("/api/all-classes/:id", async (req, res) => {
   res.send(result || {});
 });
 
+app.get("/api/getmyclasses", async (req, res) => {
+  const { trainerId } = req.query;
+  const query = { authorId: trainerId };
+  const result = await classCollection.find(query).toArray();
+  res.send(result || {});
+});
+
 app.post("/api/add-class", async (req, res) => {
-  const result = await classCollection.insertOne(req.body);
+  const data = req.body;
+  const newData = {
+    ...data,
+    createdAt: new Date(),
+  };
+  const result = await classCollection.insertOne(newData);
   res.send(result);
 });
 
