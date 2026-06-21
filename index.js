@@ -280,6 +280,20 @@ app.get("/api/favorites/check", async (req, res) => {
 });
 
 //Apply as Trainer
+app.get("/api/trainerApplication", async (req, res) => {
+  const { userId } = req.query;
+
+  if (!userId) {
+    return res.status(400).json({
+      message: "userId is required",
+    });
+  }
+
+  const result = await trainerApplicationCollection.findOne({ userId });
+
+  res.send(result || {});
+});
+
 app.post("/api/trainerApplication", async (req, res) => {
   const result = await trainerApplicationCollection.insertOne(req.body);
   res.send(result);
