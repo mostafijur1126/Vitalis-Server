@@ -36,6 +36,7 @@ const subscriptionsCollection = db.collection("subscriptions");
 const bookClassCollection = db.collection("bookClasses");
 const favoriteCollection = db.collection("favorite");
 const forumPostCollection = db.collection("forumPost");
+const trainerApplicationCollection = db.collection("application");
 const userCollection = db.collection("user");
 
 // All Classes
@@ -75,46 +76,6 @@ app.post("/api/subscription", async (req, res) => {
     { $set: { plan: "pro" } },
   );
   res.json({ msg: "Payment Successfully!" });
-});
-
-// Booking
-app.get("/api/checkBooking", async (req, res) => {
-  const { userId, classId } = req.query;
-  const existing = await bookClassCollection.findOne({ userId, classId });
-  res.status(200).json({ isBooked: !!existing });
-});
-
-app.post("/api/bookClass", async (req, res) => {
-  const result = await bookClassCollection.insertOne(req.body);
-  res.status(200).json(result);
-});
-
-// Favorites
-app.post("/api/favorites", async (req, res) => {
-  const { userId, classId } = req.body;
-  const existing = await favoriteCollection.findOne({ userId, classId });
-  if (existing) {
-    await favoriteCollection.deleteOne({ userId, classId });
-    res
-      .status(200)
-      .json({ isFavorite: false, message: "Removed from favorites" });
-  } else {
-    await favoriteCollection.insertOne({ ...req.body, createdAt: new Date() });
-    res.status(200).json({ isFavorite: true, message: "Added to favorites" });
-  }
-});
-
-app.get("/api/favorites/check", async (req, res) => {
-  const { userId, classId } = req.query;
-  const existing = await favoriteCollection.findOne({ userId, classId });
-  res.status(200).json({ isFavorite: !!existing });
-});
-
-// ⭐ Uncomment করা হয়েছে
-app.get("/api/favorites", async (req, res) => {
-  const { userId } = req.query;
-  const favorites = await favoriteCollection.find({ userId }).toArray();
-  res.status(200).json(favorites);
 });
 
 // Forum posts
@@ -264,6 +225,64 @@ app.post("/api/forum/reply", async (req, res) => {
   );
 
   res.json({ success: true, reply });
+});
+
+//api for member
+// Booking
+app.get("/api/getbookings", async (req, res) => {
+  const { userId } = req.query;
+  const query = { userId: userId };
+  const result = await bookClassCollection.find(query).toArray();
+  res.send(result);
+});
+app.get("/api/checkBooking", async (req, res) => {
+  const { userId, classId } = req.query;
+  const existing = await bookClassCollection.findOne({ userId, classId });
+  res.status(200).json({ isBooked: !!existing });
+});
+
+app.post("/api/bookClass", async (req, res) => {
+  const result = await bookClassCollection.insertOne(req.body);
+  res.status(200).json(result);
+});
+
+// Favorites
+app.get("/api/favorites", async (req, res) => {
+  const { userId } = req.query;
+  const favorites = await favoriteCollection.find({ userId }).toArray();
+  res.status(200).json(favorites);
+});
+
+app.post("/api/favorites", async (req, res) => {
+  const { userId, classId } = req.body;
+  const existing = await favoriteCollection.findOne({ userId, classId });
+  if (existing) {
+    await favoriteCollection.deleteOne({ userId, classId });
+    res
+      .status(200)
+      .json({ isFavorite: false, message: "Removed from favorites" });
+  } else {
+    await favoriteCollection.insertOne({ ...req.body, createdAt: new Date() });
+    res.status(200).json({ isFavorite: true, message: "Added to favorites" });
+  }
+});
+
+app.delete("/api/favorites", async (req, res) => {
+  const { userId, classId } = req.body;
+  const result = await favoriteCollection.deleteOne({ userId, classId });
+  res.send(result);
+});
+
+app.get("/api/favorites/check", async (req, res) => {
+  const { userId, classId } = req.query;
+  const existing = await favoriteCollection.findOne({ userId, classId });
+  res.status(200).json({ isFavorite: !!existing });
+});
+
+//Apply as Trainer
+app.post("/api/trainerApplication", async (req, res) => {
+  const result = await trainerApplicationCollection.insertOne(req.body);
+  res.send(result);
 });
 
 app.get("/", (req, res) => res.send("Hello World!"));
