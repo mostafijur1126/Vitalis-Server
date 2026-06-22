@@ -39,6 +39,12 @@ const forumPostCollection = db.collection("forumPost");
 const trainerApplicationCollection = db.collection("application");
 const userCollection = db.collection("user");
 
+//User
+app.get("/api/all-users", async (req, res) => {
+  const result = await userCollection.find().toArray();
+  res.send(result);
+});
+
 // All Classes
 app.get("/api/all-class", async (req, res) => {
   try {
