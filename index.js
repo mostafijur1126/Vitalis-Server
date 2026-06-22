@@ -77,6 +77,22 @@ app.post("/api/add-class", async (req, res) => {
   res.send(result);
 });
 
+app.patch("/api/all-classes/:id", async (req, res) => {
+  const { id } = req.params;
+  const updatedData = req.body;
+  const result = await classCollection.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: updatedData },
+  );
+  res.send(result);
+});
+
+app.delete("/api/my-class/:id", async (req, res) => {
+  const { id } = req.params;
+  const result = await classCollection.deleteOne({ _id: new ObjectId(id) });
+  res.send(result);
+});
+
 // Subscription
 app.post("/api/subscription", async (req, res) => {
   const { sessionId, userId, priceId } = req.body;
@@ -93,6 +109,12 @@ app.post("/api/subscription", async (req, res) => {
 // Forum posts
 app.get("/api/forumPost", async (req, res) => {
   const result = await forumPostCollection.find().toArray();
+  res.send(result);
+});
+app.get("/api/my-forumPost", async (req, res) => {
+  const { userId } = req.query;
+  const query = { userId: userId };
+  const result = await forumPostCollection.find(query).toArray();
   res.send(result);
 });
 app.get("/api/forumPost/:id", async (req, res) => {
