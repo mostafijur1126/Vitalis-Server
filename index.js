@@ -129,6 +129,12 @@ app.post("/api/forumPost", async (req, res) => {
   res.status(200).json(result);
 });
 
+app.delete("/api/my-post/:id", async (req, res) => {
+  const { id } = req.params;
+  const result = await forumPostCollection.deleteOne({ _id: new ObjectId(id) });
+  res.send(result);
+});
+
 //Like toggle
 app.post("/api/forum/like", async (req, res) => {
   const { postId, userId } = req.body;
