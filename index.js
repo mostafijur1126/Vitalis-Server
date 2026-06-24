@@ -18,6 +18,7 @@ app.use(express.json());
 
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 const uri = process.env.MONGODB_URI;
 
 const client = new MongoClient(uri, {
@@ -27,6 +28,46 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
+
+const JWKS = createRemoteJWKSet(
+  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+);
+
+const verifyToken = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer")) {
+    return res.status(401).json({ msg: "Unauthorize" });
+  }
+  const token = authHeader?.split(" ")[1];
+  if (!token) {
+    return res.status(401).json({ msg: "Unauthorize" });
+  }
+
+  try {
+    const { payload } = await jwtVerify(token, JWKS);
+    req.user = payload;
+    next();
+  } catch (error) {
+    console.log(error);
+    return res.status(401).json({ msg: "Unauthorize" });
+  }
+};
+
+const trainerVerify = async (req, res, next) => {
+  const user = req.user;
+  if (user.role !== "trainer") {
+    return res.status(403).json({ msg: "Forbidden" });
+  }
+  next();
+};
+
+const memberVerify = async (req, res, next) => {
+  const user = req.user;
+  if (user.role !== "member") {
+    return res.status(403).json({ msg: "Forbidden" });
+  }
+  next();
+};
 
 client.connect().catch(console.dir);
 
@@ -60,7 +101,7 @@ app.get("/api/all-class", async (req, res) => {
   }
 });
 
-app.get("/api/all-classes/:id", async (req, res) => {
+app.get("/api/all-classes/:id", verifyToken, async (req, res) => {
   const query = { _id: new ObjectId(req.params.id) };
   const result = await classCollection.findOne(query);
   res.send(result || {});
@@ -73,7 +114,7 @@ app.get("/api/getmyclasses", async (req, res) => {
   res.send(result || {});
 });
 
-app.post("/api/add-class", async (req, res) => {
+app.post("/api/add-class", verifyToken, trainerVerify, async (req, res) => {
   const data = req.body;
   const newData = {
     ...data,
@@ -123,7 +164,7 @@ app.get("/api/my-forumPost", async (req, res) => {
   const result = await forumPostCollection.find(query).toArray();
   res.send(result);
 });
-app.get("/api/forumPost/:id", async (req, res) => {
+app.get("/api/forumPost/:id", verifyToken, async (req, res) => {
   const id = req.params.id;
   const query = { _id: new ObjectId(id) };
   const result = await forumPostCollection.findOne(query);
@@ -275,7 +316,7 @@ app.post("/api/forum/reply", async (req, res) => {
 
 //api for member
 // Booking
-app.get("/api/getbookings", async (req, res) => {
+app.get("/api/getbookings", verifyToken, memberVerify, async (req, res) => {
   const { userId } = req.query;
   const query = { userId: userId };
   const result = await bookClassCollection.find(query).toArray();
@@ -293,7 +334,7 @@ app.post("/api/bookClass", async (req, res) => {
 });
 
 // Favorites
-app.get("/api/favorites", async (req, res) => {
+app.get("/api/favorites", verifyToken, memberVerify, async (req, res) => {
   const { userId } = req.query;
   const favorites = await favoriteCollection.find({ userId }).toArray();
   res.status(200).json(favorites);
@@ -326,19 +367,24 @@ app.get("/api/favorites/check", async (req, res) => {
 });
 
 //Apply as Trainer
-app.get("/api/trainerApplication", async (req, res) => {
-  const { userId } = req.query;
+app.get(
+  "/api/trainerApplication",
+  verifyToken,
+  memberVerify,
+  async (req, res) => {
+    const { userId } = req.query;
 
-  if (!userId) {
-    return res.status(400).json({
-      message: "userId is required",
-    });
-  }
+    if (!userId) {
+      return res.status(400).json({
+        message: "userId is required",
+      });
+    }
 
-  const result = await trainerApplicationCollection.findOne({ userId });
+    const result = await trainerApplicationCollection.findOne({ userId });
 
-  res.send(result || {});
-});
+    res.send(result || {});
+  },
+);
 
 // Application check
 app.get("/api/trainer-application/check", async (req, res) => {
