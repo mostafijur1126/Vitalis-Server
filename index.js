@@ -261,6 +261,22 @@ app.get("/api/forumPost", async (req, res) => {
   const result = await forumPostCollection.find().toArray();
   res.send(result);
 });
+//lstest posts
+app.get("/api/latest-forum-posts", async (req, res) => {
+  try {
+    const latestPost = await forumPostCollection
+      .find({})
+      .sort({ createdAt: -1 })
+      .limit(3)
+      .toArray();
+    res.send(latestPost);
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Faild to fetch latest forum posts",
+    });
+  }
+});
 app.get("/api/my-forumPost", verifyToken, trainerVerify, async (req, res) => {
   const { userId } = req.query;
   const query = { userId: userId };
