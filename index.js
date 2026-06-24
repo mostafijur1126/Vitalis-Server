@@ -35,6 +35,7 @@ const JWKS = createRemoteJWKSet(
 
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
+  // console.log("header ", authHeader);
   if (!authHeader || !authHeader.startsWith("Bearer")) {
     return res.status(401).json({ msg: "Unauthorize" });
   }
@@ -52,9 +53,18 @@ const verifyToken = async (req, res, next) => {
     return res.status(401).json({ msg: "Unauthorize" });
   }
 };
+const adminVerify = async (req, res, next) => {
+  const user = req.user;
+  // console.log(user);
+  if (user.role !== "admin") {
+    return res.status(403).json({ msg: "Forbidden" });
+  }
+  next();
+};
 
 const trainerVerify = async (req, res, next) => {
   const user = req.user;
+  // console.log(user);
   if (user.role !== "trainer") {
     return res.status(403).json({ msg: "Forbidden" });
   }
@@ -81,7 +91,7 @@ const trainerApplicationCollection = db.collection("application");
 const userCollection = db.collection("user");
 
 //User
-app.get("/api/all-users", async (req, res) => {
+app.get("/api/all-users", verifyToken, adminVerify, async (req, res) => {
   const result = await userCollection.find().toArray();
   res.send(result);
 });
@@ -93,10 +103,98 @@ app.get("/api/all-class", async (req, res) => {
     const query = {};
     if (search) query.className = { $regex: search, $options: "i" };
     if (category && category !== "All Categories") query.category = category;
-    const result = await classCollection.find(query).toArray();
+    const result = await classCollection
+      .aggregate([
+        {
+          $match: query,
+        },
+        {
+          $addFields: {
+            classIdString: {
+              $toString: "$_id",
+            },
+          },
+        },
+
+        {
+          $lookup: {
+            from: "bookClasses",
+            localField: "classIdString",
+            foreignField: "classId",
+            as: "bookings",
+          },
+        },
+
+        {
+          $addFields: {
+            totalBookings: {
+              $size: "$bookings",
+            },
+          },
+        },
+        // Remove unnecessary fields
+        {
+          $project: {
+            bookings: 0,
+            classIdString: 0,
+          },
+        },
+      ])
+      .toArray();
     res.send(result);
   } catch (error) {
     console.error("Error:", error.message);
+    res.status(500).send({ message: error.message });
+  }
+});
+
+//featured classes
+app.get("/api/featured-classes", async (req, res) => {
+  try {
+    const result = await classCollection
+      .aggregate([
+        {
+          $addFields: {
+            classIdString: {
+              $toString: "$_id",
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "bookClasses",
+            localField: "classIdString",
+            foreignField: "classId",
+            as: "bookings",
+          },
+        },
+        {
+          $addFields: {
+            totalBookings: {
+              $size: "$bookings",
+            },
+          },
+        },
+        {
+          $project: {
+            bookings: 0,
+            classIdString: 0,
+          },
+        },
+        {
+          $sort: {
+            totalBookings: -1,
+            createdAt: -1,
+          },
+        },
+        {
+          $limit: 3,
+        },
+      ])
+      .toArray();
+
+    res.send(result);
+  } catch (error) {
     res.status(500).send({ message: error.message });
   }
 });
@@ -107,7 +205,7 @@ app.get("/api/all-classes/:id", verifyToken, async (req, res) => {
   res.send(result || {});
 });
 
-app.get("/api/getmyclasses", async (req, res) => {
+app.get("/api/getmyclasses", verifyToken, trainerVerify, async (req, res) => {
   const { trainerId } = req.query;
   const query = { authorId: trainerId };
   const result = await classCollection.find(query).toArray();
@@ -124,15 +222,20 @@ app.post("/api/add-class", verifyToken, trainerVerify, async (req, res) => {
   res.send(result);
 });
 
-app.patch("/api/all-classes/:id", async (req, res) => {
-  const { id } = req.params;
-  const updatedData = req.body;
-  const result = await classCollection.updateOne(
-    { _id: new ObjectId(id) },
-    { $set: updatedData },
-  );
-  res.send(result);
-});
+app.patch(
+  "/api/all-classes/:id",
+  verifyToken,
+  trainerVerify,
+  async (req, res) => {
+    const { id } = req.params;
+    const updatedData = req.body;
+    const result = await classCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updatedData },
+    );
+    res.send(result);
+  },
+);
 
 app.delete("/api/my-class/:id", async (req, res) => {
   const { id } = req.params;
@@ -158,7 +261,7 @@ app.get("/api/forumPost", async (req, res) => {
   const result = await forumPostCollection.find().toArray();
   res.send(result);
 });
-app.get("/api/my-forumPost", async (req, res) => {
+app.get("/api/my-forumPost", verifyToken, trainerVerify, async (req, res) => {
   const { userId } = req.query;
   const query = { userId: userId };
   const result = await forumPostCollection.find(query).toArray();
@@ -170,7 +273,7 @@ app.get("/api/forumPost/:id", verifyToken, async (req, res) => {
   const result = await forumPostCollection.findOne(query);
   res.send(result);
 });
-app.post("/api/forumPost", async (req, res) => {
+app.post("/api/forumPost", verifyToken, trainerVerify, async (req, res) => {
   const newPost = { ...req.body, createdAt: new Date(), status: "pending" };
   const result = await forumPostCollection.insertOne(newPost);
   res.status(200).json(result);
@@ -326,6 +429,115 @@ app.get("/api/checkBooking", async (req, res) => {
   const { userId, classId } = req.query;
   const existing = await bookClassCollection.findOne({ userId, classId });
   res.status(200).json({ isBooked: !!existing });
+});
+
+app.get(
+  "/api/trainer/classes/bookings/:trainerId",
+  verifyToken,
+  trainerVerify,
+  async (req, res) => {
+    try {
+      const { trainerId } = req.params;
+
+      const result = await classCollection
+        .aggregate([
+          {
+            $match: {
+              authorId: trainerId,
+            },
+          },
+          {
+            $addFields: {
+              classIdString: {
+                $toString: "$_id",
+              },
+            },
+          },
+          {
+            $lookup: {
+              from: "bookClasses",
+              localField: "classIdString",
+              foreignField: "classId",
+              as: "bookings",
+            },
+          },
+          {
+            $addFields: {
+              totalBookings: {
+                $size: "$bookings",
+              },
+            },
+          },
+          {
+            $project: {
+              bookings: 0,
+              classIdString: 0,
+            },
+          },
+        ])
+        .toArray();
+      res.send(result);
+    } catch (error) {
+      res.status(500).send(error.message);
+    }
+  },
+);
+
+app.get("/trainer/total-bookings/:trainerId", async (req, res) => {
+  try {
+    const { trainerId } = req.params;
+
+    const result = await classCollection
+      .aggregate([
+        {
+          $match: {
+            authorId: trainerId,
+          },
+        },
+        {
+          $addFields: {
+            classIdString: {
+              $toString: "$_id",
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "bookClasses",
+            localField: "classIdString",
+            foreignField: "classId",
+            as: "bookings",
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalBookings: {
+              $sum: {
+                $size: "$bookings",
+              },
+            },
+          },
+        },
+      ])
+      .toArray();
+
+    res.send(result[0] || { totalBookings: 0 });
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
+
+app.get("/admin/total-bookings", async (req, res) => {
+  try {
+    const total = await bookClassCollection.countDocuments();
+
+    res.send({
+      totalBookings: total,
+    });
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
 });
 
 app.post("/api/bookClass", async (req, res) => {
