@@ -689,6 +689,36 @@ app.get(
   },
 );
 
+app.get(
+  "/api/trainer/classes/:classId/students",
+  verifyToken,
+  trainerVerify,
+  async (req, res) => {
+    try {
+      const { classId } = req.params;
+      const trainerId = req.user?.id || req.user?.sub;
+
+      const classDoc = await classCollection.findOne({
+        _id: new ObjectId(classId),
+        authorId: trainerId,
+      });
+
+      if (!classDoc) {
+        return res.status(403).json({ msg: "Forbidden" });
+      }
+
+      const students = await bookClassCollection
+        .find({ classId })
+        .project({ userName: 1, userEmail: 1, _id: 0 })
+        .toArray();
+
+      res.json(students);
+    } catch (error) {
+      res.status(500).send(error.message);
+    }
+  },
+);
+
 app.get("/trainer/total-bookings/:trainerId", async (req, res) => {
   try {
     const { trainerId } = req.params;
