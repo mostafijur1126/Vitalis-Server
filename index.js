@@ -83,9 +83,9 @@ const trainerOrAdminVerify = async (req, res, next) => {
   next();
 };
 
-const memberVerify = async (req, res, next) => {
+const userVerify = async (req, res, next) => {
   const user = req.user;
-  if (user.role !== "member") {
+  if (user.role !== "user") {
     return res.status(403).json({ msg: "Forbidden" });
   }
   next();
@@ -181,7 +181,7 @@ app.get("/api/all-class", async (req, res) => {
     const { search = "", category = "", page = "1", limit = "6" } = req.query;
     const pageNumber = Math.max(1, parseInt(page, 10) || 1);
     const limitNumber = Math.max(1, parseInt(limit, 10) || 6);
-    const query = {};
+    const query = { status: "approved" };
 
     if (search) query.className = { $regex: search, $options: "i" };
     if (category && category !== "All Categories") query.category = category;
@@ -623,9 +623,9 @@ app.post("/api/forum/reply", async (req, res) => {
   res.json({ success: true, reply });
 });
 
-//api for member
+//api for user role verification
 // Booking
-app.get("/api/getbookings", verifyToken, memberVerify, async (req, res) => {
+app.get("/api/getbookings", verifyToken, userVerify, async (req, res) => {
   const { userId } = req.query;
   const query = { userId: userId };
   const result = await bookClassCollection.find(query).toArray();
@@ -769,7 +769,7 @@ app.get("/api/transactions", verifyToken, adminVerify, async (req, res) => {
 });
 
 // Favorites
-app.get("/api/favorites", verifyToken, memberVerify, async (req, res) => {
+app.get("/api/favorites", verifyToken, userVerify, async (req, res) => {
   const { userId } = req.query;
   const favorites = await favoriteCollection.find({ userId }).toArray();
   res.status(200).json(favorites);
@@ -805,7 +805,7 @@ app.get("/api/favorites/check", async (req, res) => {
 app.get(
   "/api/trainerApplication",
   verifyToken,
-  memberVerify,
+  userVerify,
   async (req, res) => {
     const { userId } = req.query;
 
